@@ -296,7 +296,7 @@ class ActorStep(CBPiStep):
 
     async def on_start(self):
         if self.timer is None:
-            self.timer = Timer(int(self.props.Timer) * 60, on_update=self.on_timer_update, on_done=self.on_timer_done)
+            self.timer = Timer(int(float(self.props.Timer) * 60), on_update=self.on_timer_update, on_done=self.on_timer_done)
         self.timer.start()
         await self.actor_on(self.props.Actor)
 
@@ -307,7 +307,7 @@ class ActorStep(CBPiStep):
         await self.push_update()
 
     async def reset(self):
-        self.timer = Timer(int(self.props.Timer) * 60, on_update=self.on_timer_update, on_done=self.on_timer_done)
+        self.timer = Timer(int(float(self.props.Timer) * 60), on_update=self.on_timer_update, on_done=self.on_timer_done)
 
     async def run(self):
         while self.running == True:

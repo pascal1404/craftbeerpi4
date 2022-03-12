@@ -345,15 +345,17 @@ class UploadController:
             name = e['Name']
             boil_time = float(e['Kochzeit_Wuerze'])
             
-            await self.create_recipe(name)
-            
+            water_str = "Hauptguss: {}l; Nachguss: {}l".format(e['Infusion_Hauptguss'],e['Nachguss'])
             
             hops = []
+            firstHops=[]
             for idx in range(1,self.findMax("Hopfen_%%_Kochzeit")):
-                hops_name = "%sg %s %s%% alpha" % (e["Hopfen_{}_Menge".format(idx)],e["Hopfen_{}_Sorte".format(idx)],e["Hopfen_{}_alpha".format(idx)])
+                hops_name = "%sg %s %s%%" % (e["Hopfen_{}_Menge".format(idx)],e["Hopfen_{}_Sorte".format(idx)],e["Hopfen_{}_alpha".format(idx)])
                 if e["Hopfen_{}_Kochzeit".format(idx)].isnumeric():
                     if boil_time is not e["Hopfen_{}_Kochzeit".format(idx)].isnumeric():
                         alert = float(e["Hopfen_{}_Kochzeit".format(idx)])
+                    else:
+                        firstHops.append({"name":hops_name})
                 elif e["Hopfen_{}_Kochzeit".format(idx)] == "Whirlpool":
                     alert = float(1)
                 else:
@@ -362,7 +364,6 @@ class UploadController:
                 hops.append({"name":hops_name,"time":alert})
                 
             
-            firstHops=[]
             for idx in range(1,self.findMax("Hopfen_VWH_%%_Sorte")):
                 firstHops_name = "%sg %s %s%% alpha" % (e["Hopfen_VWH_{}_Menge".format(idx)],e["Hopfen_VWH_{}_Sorte".format(idx)],e["Hopfen_VWH_{}_alpha".format(idx)])
             
@@ -383,6 +384,40 @@ class UploadController:
                     alert = float(1)
                 miscs.append({"name":miscs_name,"time":alert})
                 
+            malts = []
+            for idx in range(1,self.findMax("Malz%%_Menge")):
+                malt_name = "%s%s %s" % (e["Malz{}_Menge".format(idx)],e["Malz{}_Einheit".format(idx)],e["Malz{}".format(idx)])
+                
+                malts.append({"name":malt_name})
+            malt_str= ';'.join([m['name'] for m in malts])
+            
+                
+            times=set()
+            hops = sorted(hops+miscs, key = lambda i: i['time'], reverse=True)
+            Hops = []
+            for hop in hops:
+                time=hop['time']
+                if time not in times:
+                    Hops.append(hop)
+                    times.add(time)
+                else:
+                    for idx, h in enumerate(Hops):
+                        if time == h['time']:
+                            Hops[idx].update({'name': Hops[idx]['name'] + ', ' + hop['name']})
+            hop_str=';'.join([h['name'] for h in Hops])
+            if len(Hops) > 6:
+                self.cbpi.notify('ERROR', 'In the reciepe are more than 6 different hop alerts! Only the first 6 alerts could be added. {}'.format(hop_str), NotificationType.ERROR)
+            alerts=[]
+            for i in range(0,6):
+                try:
+                    alerts.append(str(int(Hops[i]['time'])))
+                except:
+                    alerts.append(None)
+                    
+            desc = "Cloned from MaischeMalzundMehr. water:\n{}\nmalt:\n{}\nhops:\n{}\nyeast:\n{}\n".format(water_str, malt_str, ';'.join([fh['name'] for fh in firstHops]) + hop_str, e['Hefe'])
+            logging.info(desc)
+            
+            await self.create_recipe(name, desc)
                 
             # Mash Steps -> first step is different as it heats up to defined temp and stops with notification to add malt
             # AutoMode is yes to start and stop automatic mode or each step
@@ -414,7 +449,8 @@ class UploadController:
                                             "Sensor": self.kettle.sensor,
                                             "Temp": self.getJsonMashin(Recipe_ID),
                                             "Timer": 0,
-                                            "Notification": Notification
+                                            "Notification": Notification,
+                                            "Malt": malt_str
                                             },
                                          "status_text": "",
                                          "status": "I",
@@ -492,8 +528,8 @@ class UploadController:
                                 }
             await self.create_step(step_string)
                 
-            # Boil step including hop alarms and alarm for first wort hops -> Automode is set tu yes
-            Hops = self.getBoilAlerts(hops, miscs, "json")
+            # Boil step including hop alarms and alarm for first wort hops -> Automode is set to yes
+            #Hops = self.getBoilAlerts(hops, miscs, "json")
             step_kettle = self.boilid
             step_type = self.boil if self.boil != "" else "BoilStep"
             step_time = str(int(boil_time))
@@ -512,12 +548,14 @@ class UploadController:
                                 "Timer": step_time,
                                 "First_Wort": FirstWort,
                                 "LidAlert": LidAlert,
-                                "Hop_1": Hops[0],
-                                "Hop_2": Hops[1],
-                                "Hop_3": Hops[2],
-                                "Hop_4": Hops[3],
-                                "Hop_5": Hops[4],
-                                "Hop_6": Hops[5]
+                                "Hop_1": alerts[0],
+                                "Hop_2": alerts[1],
+                                "Hop_3": alerts[2],
+                                "Hop_4": alerts[3],
+                                "Hop_5": alerts[4],
+                                "Hop_6": alerts[5],
+                                "Hops": hop_str,
+                                "First Wort Hops": ';'.join([fh['name'] for fh in firstHops])
                                 },
                             "status_text": "",
                             "status": "I",
@@ -942,7 +980,7 @@ class UploadController:
                 if hop['use'] == "First Wort":
                     alert="Yes"
         elif recipe_type == "json":
-            for hop in hops:
+            if len(hops) != 0:
                 alert="Yes"
         return alert
 
@@ -1039,9 +1077,14 @@ class UploadController:
         logging.info(config_values)
         return config_values
 
-    async def create_recipe(self, name):
+    async def create_recipe(self, name, desc):
         # Create recipe in recipe Book with name of first recipe in xml file
-        self.recipeID = await self.cbpi.recipe.create(name)
+        if(desc is not None):
+            self.recipeID = await self.cbpi.recipe.create(name, desc)
+        
+        else:
+            self.recipeID = await self.cbpi.recipe.create(name, "")
+        
         # send recipe to mash profile
         await self.cbpi.recipe.brew(self.recipeID)
         # remove empty recipe from recipe book

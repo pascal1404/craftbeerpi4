@@ -18,9 +18,10 @@ class CBPiActor(metaclass=ABCMeta):
         self.props = props
         self.logger = logging.getLogger(__file__)
         self.data_logger = None
-        self.state = False  
+        self.state = False
         self.running = False
         self.power = 100
+        self.timer = 0
 
     def init(self):
         pass

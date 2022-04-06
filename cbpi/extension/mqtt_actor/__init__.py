@@ -3,6 +3,7 @@ from cbpi.api import *
 from .mqtt_actor import MQTTActor
 from .generic_mqtt_actor import GenericMqttActor
 from .tasmota_mqtt_actor import TasmotaMqttActor
+from .mqtt_timed_actor import MQTTTimedActor
 
 def setup(cbpi):
     '''
@@ -14,5 +15,6 @@ def setup(cbpi):
     '''
     if str(cbpi.static_config.get("mqtt", False)).lower() == "true":
         cbpi.plugin.register("MQTTActor", MQTTActor)
+        cbpi.plugin.register("MQTT TimedActor", MQTTTimedActor)
         cbpi.plugin.register("MQTT Actor (Generic)", GenericMqttActor)
         cbpi.plugin.register("MQTT Actor (Tasmota)", TasmotaMqttActor)

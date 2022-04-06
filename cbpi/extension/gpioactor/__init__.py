@@ -168,7 +168,7 @@ class GPIOTimedActor(CBPiActor):
     
     async def run(self):
         while self.running == True:
-            if self.reqstate == True:
+            if self.direct:
                 if self.swOffDelay == False and not self.paused:
                     if self.timer < self.delayTime:
                         self.timer += 1
@@ -176,30 +176,60 @@ class GPIOTimedActor(CBPiActor):
                         await asyncio.sleep(1)
                         self.first = True
                     else:
-                        GPIO.output(self.gpio, self.get_GPIO_state(1))
                         self.state = True
                         if self.first:
                             self.first = False
+                            GPIO.output(self.gpio, self.get_GPIO_state(1))
                             await self.cbpi.actor.timeractor_update(self.id, self.timer)
                         await asyncio.sleep(1)
-                else:
-                    await asyncio.sleep(1)
-            else:
-                if self.swOffDelay == True and not self.paused:
+                elif self.swOffDelay == True and not self.paused:
                     if self.timer > 0:
                         self.timer -= 1
                         await self.cbpi.actor.timeractor_update(self.id, self.timer)
                         await asyncio.sleep(1)
                         self.first = True
                     else:
-                        GPIO.output(self.gpio, self.get_GPIO_state(0))
                         self.state = False
                         if self.first:
                             self.first = False
+                            GPIO.output(self.gpio, self.get_GPIO_state(0))
                             await self.cbpi.actor.timeractor_update(self.id, self.timer)
                         await asyncio.sleep(1)
                 else:
                     await asyncio.sleep(1)
+            else:
+                if self.reqstate == True:
+                    if self.swOffDelay == False and not self.paused:
+                        if self.timer < self.delayTime:
+                            self.timer += 1
+                            await self.cbpi.actor.timeractor_update(self.id, self.timer)
+                            await asyncio.sleep(1)
+                            self.first = True
+                        else:
+                            self.state = True
+                            if self.first:
+                                self.first = False
+                                GPIO.output(self.gpio, self.get_GPIO_state(1))
+                                await self.cbpi.actor.timeractor_update(self.id, self.timer)
+                            await asyncio.sleep(1)
+                    else:
+                        await asyncio.sleep(1)
+                else:
+                    if self.swOffDelay == True and not self.paused:
+                        if self.timer > 0:
+                            self.timer -= 1
+                            await self.cbpi.actor.timeractor_update(self.id, self.timer)
+                            await asyncio.sleep(1)
+                            self.first = True
+                        else:
+                            self.state = False
+                            if self.first:
+                                self.first = False
+                                GPIO.output(self.gpio, self.get_GPIO_state(0))
+                                await self.cbpi.actor.timeractor_update(self.id, self.timer)
+                            await asyncio.sleep(1)
+                    else:
+                        await asyncio.sleep(1)
 
 @parameters([Property.Select(label="GPIO", options=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27]), 
              Property.Number(label="Frequency", configurable=True)])

@@ -27,10 +27,10 @@ class RecipeController:
 
         return s
 
-    async def create(self, name):
+    async def create(self, name, desc):
         id = shortuuid.uuid()
         path = os.path.join(".", 'config', "recipes", "{}.yaml".format(id))
-        data = dict(basic=dict(name=name, author=self.cbpi.config.get("AUTHOR", "John Doe")), steps=[])
+        data = dict(basic=dict(name=name, author=self.cbpi.config.get("AUTHOR", "John Doe"), desc=desc), steps=[])
         with open(path, "w") as file:
             yaml.dump(data, file)
         return id

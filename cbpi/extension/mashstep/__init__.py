@@ -17,6 +17,7 @@ from cbpi.api.base import CBPiBase
 import numpy as np
 import warnings
 
+logger = logging.getLogger(__name__)
 
 
 @parameters([Property.Text(label="Notification",configurable = True, description = "Text for notification"),
@@ -64,7 +65,8 @@ class NotificationStep(CBPiStep):
              Property.Sensor(label="Sensor"),
              Property.Kettle(label="Kettle"),
              Property.Text(label="Notification",configurable = True, description = "Text for notification when Temp is reached"),
-             Property.Select(label="AutoMode",options=["Yes","No"], description="Switch Kettlelogic automatically on and off -> Yes")])
+             Property.Select(label="AutoMode",options=["Yes","No"], description="Switch Kettlelogic automatically on and off -> Yes"),
+             Property.Text(label="Malt",configurable = True, description = "OPTIONAL: List of malts added at MashIn. (seperated with ;)")])
 class MashInStep(CBPiStep):
 
     async def NextStep(self, **kwargs):
@@ -76,7 +78,8 @@ class MashInStep(CBPiStep):
         await self.push_update()
         if self.AutoMode == True:
             await self.setAutoMode(False)
-        self.cbpi.notify(self.name, self.props.get("Notification","Target Temp reached. Please add malt and klick next to move on."), action=[NotificationAction("Next Step", self.NextStep)])
+        self.malts=self.props.get("Malt", "").split(";")
+        self.cbpi.notify(self.name, self.props.get("Notification","Target Temp reached. Please add malt and klick next to move on.")+"\n{}".format(",\n".join([i.strip() for i in self.malts])), action=[NotificationAction("Next Step", self.NextStep)])
 
     async def on_timer_update(self,timer, seconds):
         await self.push_update()
@@ -327,7 +330,9 @@ class ActorStep(CBPiStep):
              Property.Number("Hop_3", configurable=True, description="Third Hop alert (minutes before finish)"),
              Property.Number("Hop_4", configurable=True, description="Fourth Hop alert (minutes before finish)"),
              Property.Number("Hop_5", configurable=True, description="Fifth Hop alert (minutes before finish)"),
-             Property.Number("Hop_6", configurable=True, description="Sixth Hop alert (minutes before finish)")])
+             Property.Number("Hop_6", configurable=True, description="Sixth Hop alert (minutes before finish)"),
+             Property.Text(label="Hops", configurable = True, description = "OPTIONAL: List of hops added. Sorted like hop alerts. (seperated with ;)"),
+             Property.Text(label="First Wort Hops", configurable = True, description = "OPTIONAL: List of first wort hops added. (seperated with ;)")])
 class BoilStep(CBPiStep):
 
     @action("Start Timer", [])
@@ -369,6 +374,7 @@ class BoilStep(CBPiStep):
         self.first_wort_hop=self.props.get("First_Wort", "No")
         self.hops_added=["","","","","",""]
         self.remaining_seconds = None
+        self.hop_names = self.props.get("Hops", "").split(";")
 
         self.kettle=self.get_kettle(self.props.get("Kettle", None))
         if self.kettle is not None:
@@ -393,7 +399,13 @@ class BoilStep(CBPiStep):
         if value is not None and self.hops_added[number-1] is not True:
             if self.remaining_seconds != None and self.remaining_seconds <= (int(value) * 60 + 1):
                 self.hops_added[number-1]= True
-                self.cbpi.notify('Hop Alert', "Please add Hop %s" % number, NotificationType.INFO)
+                try:
+                    if self.hop_names[number-1] is not None and self.hop_names[number-1] is not "":
+                        self.cbpi.notify('Hop Alert', "Please add %s" % self.hop_names[number-1].strip(), NotificationType.INFO)
+                    else:
+                        self.cbpi.notify('Hop Alert', "Please add Hop %s" % number, NotificationType.INFO)
+                except:
+                    self.cbpi.notify('Hop Alert', "Please add Hop %s" % number, NotificationType.INFO)
 
     async def on_stop(self):
         await self.timer.stop()
@@ -409,7 +421,8 @@ class BoilStep(CBPiStep):
     async def run(self):
         if self.first_wort_hop_flag == False and self.first_wort_hop == "Yes":
             self.first_wort_hop_flag = True
-            self.cbpi.notify('First Wort Hop Addition!', 'Please add hops for first wort', NotificationType.INFO)
+            self.first_wort_hop_names = self.props.get("First Wort Hops", "").split(";")
+            self.cbpi.notify('First Wort Hop Addition!', 'Please add hops for first wort'+"\n{}".format(",\n".join([i.strip() for i in self.first_wort_hop_names])), NotificationType.INFO)
 
         while self.running == True:
             await asyncio.sleep(1)
@@ -425,7 +438,7 @@ class BoilStep(CBPiStep):
                 estimated_completion_time = datetime.fromtimestamp(time.time()+ (int(self.props.get("Timer", 0)))*60)
                 self.cbpi.notify(self.name, 'Timer started. Estimated completion: {}'.format(estimated_completion_time.strftime("%H:%M")), NotificationType.INFO)
             else:
-                for x in range(1, 6):
+                for x in range(1, 7):
                     await self.check_hop_timer(x, self.props.get("Hop_%s" % x, None))
 
         return StepResult.DONE

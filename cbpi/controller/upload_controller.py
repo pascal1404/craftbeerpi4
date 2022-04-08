@@ -211,9 +211,8 @@ class UploadController:
                 row = c.fetchone()
                 BoilTime = str(int(row[0]))
 
-
-
-                await self.create_recipe(name)
+                desc="Uploaded from Kleiner Brauhelfer."
+                await self.create_recipe(name, desc)
 
                 if mashin_temp is not None:
                     step_type = self.mashin if self.mashin != "" else "MashInStep"
@@ -365,7 +364,7 @@ class UploadController:
                 
             
             for idx in range(1,self.findMax("Hopfen_VWH_%%_Sorte")):
-                firstHops_name = "%sg %s %s%% alpha" % (e["Hopfen_VWH_{}_Menge".format(idx)],e["Hopfen_VWH_{}_Sorte".format(idx)],e["Hopfen_VWH_{}_alpha".format(idx)])
+                firstHops_name = "%sg %s %s%%" % (e["Hopfen_VWH_{}_Menge".format(idx)],e["Hopfen_VWH_{}_Sorte".format(idx)],e["Hopfen_VWH_{}_alpha".format(idx)])
             
                 firstHops.append({"name":firstHops_name})
             
@@ -414,9 +413,8 @@ class UploadController:
                 except:
                     alerts.append(None)
                     
-            desc = "Cloned from MaischeMalzundMehr. water:\n{}\nmalt:\n{}\nhops:\n{}\nyeast:\n{}\n".format(water_str, malt_str, ';'.join([fh['name'] for fh in firstHops]) + hop_str, e['Hefe'])
-            logging.info(desc)
-            
+            desc = "Cloned from MaischeMalzundMehr. water:\n{}\nmalt:\n{}\nhops:\n{}\nyeast:\n{}\n".format(water_str, malt_str, ';'.join([fh['name'] for fh in firstHops]) +';'+ hop_str, e['Hefe'])
+
             await self.create_recipe(name, desc)
                 
             # Mash Steps -> first step is different as it heats up to defined temp and stops with notification to add malt
@@ -601,8 +599,26 @@ class UploadController:
             name = e.find('./RECIPE[%s]/NAME' % (str(Recipe_ID))).text
             boil_time = float(e.find('./RECIPE[%s]/BOIL_TIME' % (str(Recipe_ID))).text)
             FirstWort= self.getFirstWort(hops, "xml")
-
-            await self.create_recipe(name)
+            
+            water_str = ""
+            for water in recipe.findall('./WATERS/WATER'):
+                water_str += "{}: {}l;".format(water.find('NAME').text,water.find('AMOUNT').text)
+            
+            malt_str = ""
+            for malt in recipe.findall('./FERMENTABLES/FERMENTABLE'):
+                malt_str += "{}g {};".format(malt.find('AMOUNT').text,malt.find('NAME').text)
+            
+            hop_str = ""
+            for hop in hops:
+                hop_str += "{}g {} {}%;".format(hop.find('AMOUNT').text,hop.find('NAME').text,hop.find('ALPHA').text)
+            
+            yeast_str = ""
+            for yeast in recipe.findall('./YEASTS/YEAST'):
+                yeast_str += "{}g {};".format(yeast.find('AMOUNT').text,yeast.find('NAME').text)
+            
+            desc="Uploaded from BeerXML. water:\n{}\nmalt:\n{}\nhops:\n{}\nyeast:\n{}\n".format(water_str, malt_str, hop_str, yeast_str)
+            
+            await self.create_recipe(name, desc)
             # Mash Steps -> first step is different as it heats up to defined temp and stops with notification to add malt
             # AutoMode is yes to start and stop automatic mode or each step
             MashIn_Flag = True
@@ -630,7 +646,8 @@ class UploadController:
                                             "Sensor": self.kettle.sensor,
                                             "Temp": step_temp,
                                             "Timer": 0,
-                                            "Notification": Notification
+                                            "Notification": Notification,
+                                            "Malt": malt_str
                                             },
                                          "status_text": "",
                                          "status": "I",
@@ -701,7 +718,9 @@ class UploadController:
                                 "Hop_3": Hops[2],
                                 "Hop_4": Hops[3],
                                 "Hop_5": Hops[4],
-                                "Hop_6": Hops[5]
+                                "Hop_6": Hops[5],
+                                "Hops": hop_str,
+                                "First Wort Hops": ""
                                 },
                             "status_text": "",
                             "status": "I",
@@ -787,8 +806,9 @@ class UploadController:
                     miscs = None
 
                 FirstWort = self.getFirstWort(hops, "bf")
-
-                await self.create_recipe(RecipeName)
+                
+                desc="Uploaded from Brewfather."
+                await self.create_recipe(RecipeName, desc)
 
                 # Mash Steps -> first step is different as it heats up to defined temp and stops with notification to add malt
                 # AutoMode is yes to start and stop automatic mode or each step

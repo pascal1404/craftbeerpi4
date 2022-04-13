@@ -39,19 +39,24 @@ class NotificationController:
         :param type: notification type (info,warning,danger,successs)
         :return: 
         '''
-        notifcation_id = shortuuid.uuid()
+        notification_id = shortuuid.uuid()
         
         def prepare_action(item):
             item.id = shortuuid.uuid()
             return item.to_dict()
 
         actions = list(map(lambda item: prepare_action(item), action))
-        self.callback_cache[notifcation_id] = action
-        self.cbpi.ws.send(dict(id=notifcation_id, topic="notifiaction", type=type.value, title=title, message=message, action=actions))
+        self.callback_cache[notification_id] = action
+        self.cbpi.ws.send(dict(id=notification_id, topic="notifiaction", type=type.value, title=title, message=message, action=actions))
         data = dict(type=type.value, title=title, message=message, action=actions)
         self.cbpi.push_update(topic="cbpi/notification", data=data)
         asyncio.create_task(self._call_listener(title, message, type, action))
 
+    def nofity_delete_dialog(self, notification_id) -> None:
+        try:
+            self.cbpi.ws.send(dict(id=notification_id, topic="delete_notification"))
+        except Exception as e:
+            self.logger.error("Failed to delete notification dialog")
 
     def notify_callback(self, notification_id, action_id) -> None:
         try:
@@ -60,5 +65,5 @@ class NotificationController:
                 asyncio.create_task(action.method())
             del self.callback_cache[notification_id]
         except Exception as e:
-            self.logger.error("Faild to call notificatoin callback")
+            self.logger.error("Failed to call notification callback")
         

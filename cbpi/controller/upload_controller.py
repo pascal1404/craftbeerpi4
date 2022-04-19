@@ -14,6 +14,7 @@ from cbpi.api.config import ConfigType
 import webbrowser
 import logging
 import os.path
+import sys
 from os import listdir
 from os.path import isfile, join
 import json
@@ -422,7 +423,6 @@ class UploadController:
             MashIn_Flag = True
             step_kettle = self.id
             last_step_temp = 0
-            logging.info(step_kettle)  ###################################################
             for row in self.getSteps(Recipe_ID, "json"):
                 step_name = str(row.get("name"))
                 step_timer = str(int(row.get("timer")))
@@ -455,7 +455,6 @@ class UploadController:
                                          "type": step_type
                                         }
                         await self.create_step(step_string)
-                        logging.info(step_kettle)  ###################################################
 
                         step_type = self.mash if self.mash != "" else "MashStep"
                         Notification = ""
@@ -482,6 +481,21 @@ class UploadController:
                                 }
 
                 await self.create_step(step_string)
+            # IodineStep -> mashStep to test mash with iodine
+            if 'cbpi4-iodineStep' in sys.modules:
+                step_string = { "name": "Iodine",
+                                "props": {
+                                        "Kettle": self.id,
+                                        "Sensor": self.kettle.sensor,
+                                        "Temp": "72",
+                                        "Timer": 10
+                                        },
+                                "status_text": "",
+                                "status": "I",
+                                "type": "IodineStep"
+                                }
+
+                await self.create_step(step_string)
             # MashOut -> mashStep to reach mashout-temp for 1 min
             if last_step_temp != e["Abmaischtemperatur"]:
                 step_string = { "name": "MashOut",
@@ -500,7 +514,24 @@ class UploadController:
 
                 await self.create_step(step_string)
             # Lautering -> Simple step that sends notification and waits for user input to move to next step (AutoNext=No)
-            if self.mashout == "NotificationStep":
+            if 'cbpi4_lauteringStep' in sys.modules:
+                self.lauteringActor = self.cbpi.config.get("lautering_actor", None)
+                step_string = { "name": "Lautering",
+                                "props": {
+                                        "Lautering_Pause": "15",
+                                        "Heating_Delay": "25",
+                                        "Fly_Sparging_Delay": "15",
+                                        "Temp": "90",
+                                        "Actor": self.lauteringActor,
+                                        "Kettle": self.id
+                                        },
+                                    "status_text": "",
+                                    "status": "I",
+                                    "type": "LauteringStep"
+                                    }
+                await self.create_step(step_string)
+                
+            elif self.mashout == "NotificationStep":
                 step_string = { "name": "Lautering",
                                 "props": {
                                         "AutoNext": "No",
@@ -534,9 +565,6 @@ class UploadController:
             step_temp = self.BoilTemp
             sensor = self.boilkettle.sensor
             LidAlert = "Yes"
-            
-            logging.info(step_temp)  ###################################################
-
             step_string = { "name": "Boil Step",
                             "props": {
                                 "AutoMode": self.AutoMode,
@@ -680,9 +708,40 @@ class UploadController:
                                 }
 
                 await self.create_step(step_string)
+            # IodineStep -> mashStep to test mash with iodine
+            if 'cbpi4-iodineStep' in sys.modules:
+                step_string = { "name": "Iodine",
+                                "props": {
+                                        "Kettle": self.id,
+                                        "Sensor": self.kettle.sensor,
+                                        "Temp": "72",
+                                        "Timer": 10
+                                        },
+                                "status_text": "",
+                                "status": "I",
+                                "type": "IodineStep"
+                                }
 
-            # MashOut -> Simple step that sends notification and waits for user input to move to next step (AutoNext=No)
-            if self.mashout == "NotificationStep":
+                await self.create_step(step_string)
+            # Lautering -> Simple step that sends notification and waits for user input to move to next step (AutoNext=No)
+            if 'cbpi4_lauteringStep' in sys.modules:
+                self.lauteringActor = self.cbpi.config.get("lautering_actor", None)
+                step_string = { "name": "Lautering",
+                                "props": {
+                                        "Lautering_Pause": "15",
+                                        "Heating_Delay": "25",
+                                        "Fly_Sparging_Delay": "15",
+                                        "Temp": "90",
+                                        "Actor": self.lauteringActor,
+                                        "Kettle": self.id
+                                        },
+                                    "status_text": "",
+                                    "status": "I",
+                                    "type": "LauteringStep"
+                                    }
+                await self.create_step(step_string)
+                
+            elif self.mashout == "NotificationStep":
                 step_string = { "name": "Lautering",
                                 "props": {
                                         "AutoNext": "No",
@@ -693,8 +752,20 @@ class UploadController:
                                     "status": "I",
                                     "type": self.mashout
                                     }
-                await self.create_step(step_string)               
+                await self.create_step(step_string)
                 
+            # Measure Original Gravity -> Simple step that sends notification
+            step_string = { "name": "Measure Original Gravity",
+                            "props": {
+                                    "AutoNext": "No",
+                                    "Kettle": self.id,
+                                    "Notification": "What is the original gravity of the beer wort?"
+                                    },
+                                "status_text": "",
+                                "status": "I",
+                                "type": "NotificationStep"
+                                }
+            await self.create_step(step_string)
             # Boil step including hop alarms and alarm for first wort hops -> Automode is set tu yes
             Hops = self.getBoilAlerts(hops, miscs, "xml")
             step_kettle = self.boilid
@@ -727,6 +798,19 @@ class UploadController:
                             "type": step_type 
                         }
 
+            await self.create_step(step_string)
+            
+            # Measure Original Gravity -> Simple step that sends notification
+            step_string = { "name": "Measure Original Gravity",
+                            "props": {
+                                    "AutoNext": "No",
+                                    "Kettle": self.id,
+                                    "Notification": "What is the original gravity of the beer wort?"
+                                    },
+                                "status_text": "",
+                                "status": "I",
+                                "type": "NotificationStep"
+                                }
             await self.create_step(step_string)
 
             await self.create_Whirlpool_Cooldown()
